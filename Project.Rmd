@@ -1,0 +1,124 @@
+---
+title: "Predict the Excercise"
+author: "Mervin Quiambao"
+output: html_document
+---
+```{r}
+# Background
+#Goal
+##The goal of this project is to predict the manner in which they did the exercise. This is the classe variable in the training set. #This project use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+# Data
+#The training data for this project are available here: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv. 
+#The test data are available here: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+#The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. 
+
+```
+```{r}
+#Executive summary
+#This project aims to predict the manner of exercise which is the classe variable in training data set. We made 3 models in which the best model is randomforest model. This model has a predicting accuracy of 99.47%. The randomforest model was used to predict the manner of exercise in the testing data set.
+```
+
+We will now load the needed libraries for this project
+
+```{r}
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(rattle)
+library(randomForest)
+library(knitr)
+```
+
+```{r}
+#Reading data sets
+rawtraining <- read.csv(url("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"), header = TRUE)
+rawtesting <- read.csv(url("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"), header = TRUE)
+str(rawtraining)
+str(rawtesting)
+dim(rawtraining)
+dim(rawtesting)
+```
+
+Notice that we can see some of the columns with multiple or many NAs. This columns will be useless or pointless to add so we remove them. We will retain columns with more than 90% of its data is missing. Also, note that the first seven columns were the personal information of the person and the time stamps so we can remove these columns as well.
+
+```{r}
+#Cleaning data
+trainingremoved <- which(colSums(is.na(rawtraining) | rawtraining == "") > 0.9*dim(rawtraining)[1])
+training1 <- rawtraining[,-trainingremoved]
+training <- training1[,-c(1:7)]
+
+testingremoved <- which(colSums(is.na(rawtesting) | rawtesting == "") > 0.9*dim(rawtesting)[1]) 
+testing1 <- rawtesting[,-testingremoved]
+testing  <- testing1[,-c(1:7)]
+
+dim(training)
+dim(testing)
+```
+
+We now partition the data into 2 which is the train1 (75%) and test1 (25%)
+```{r}
+set.seed(112518)
+trainpart <- createDataPartition(training$classe, p=0.75, list=FALSE)
+train1 <- training[trainpart,]
+test1  <- training[-trainpart,]
+dim(train1)
+```
+
+
+```{r}
+traincontrol1 <- trainControl(method="cv", number=5)
+traincontrolmodel <- train(classe~., data=train1, method="rpart", trControl = traincontrol1)
+fancyRpartPlot(traincontrolmodel$finalModel)
+```
+
+Now we look at the predicting power of the model
+```{r}
+predictedtrain <- predict(traincontrolmodel, newdata=test1)
+traincontrolmodelmat <- confusionMatrix(test1$classe,predictedtrain)
+traincontrolmodelmat$table
+traincontrolmodelmat$overall[1]
+```
+We can notice that it can only predict accurately by 50% which is low since only half can be predicted accurately
+
+We proceed to method using randomforest
+```{r}
+rfmodel <- train(classe~., data=train1, method="rf", trControl = traincontrol1, verbose = FALSE)
+rfmodel$finalModel
+```
+
+Now we look at the predicting power of the model 2
+```{r}
+predictedrf <- predict(rfmodel,newdata=test1)
+rfmodelmat <- confusionMatrix(test1$classe,predictedrf)
+rfmodelmat$table
+rfmodelmat$overall[1]
+```
+We can notice that it can predict accurately by 99.47% which is very high since all of the values can be predicted accurately
+To determine which variables contribute to this
+```{r}
+names(rfmodel$finalModel)
+```
+
+We will now proceed to checking the third model which is the gradient boosting method
+```{r}
+gbmmodel <- train(classe~., data=train1, method="gbm", trControl=traincontrol1, verbose=FALSE)
+print(gbmmodel)
+plot(gbmmodel)
+```
+
+We can now proceed to prediction
+```{r}
+predictedgbm <- predict(gbmmodel, newdata = test1)
+gbmmodelmat <- confusionMatrix(test1$classe, predictedgbm)
+gbmmodelmat$table
+gbmmodelmat$overall[1]
+```
+
+The accuracy of the prediction is which means 96.15% can be predicted accurately.
+
+Comparing the predicting accuracy of the three models, we can see that the rfmodel has the highest predicting accuracy which is 99.47. Since we already have a model to be used in predicting, we will now predict the classe in the testing data. 
+```{r}
+testingprediction <- predict(rfmodel, newdata = testing)
+testingprediction
+```
